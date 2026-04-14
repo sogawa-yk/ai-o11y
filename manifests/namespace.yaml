@@ -1,0 +1,7 @@
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: aio11y-book
+  labels:
+    app.kubernetes.io/part-of: aio11y-book
+    book.aio11y/owned-by: book
