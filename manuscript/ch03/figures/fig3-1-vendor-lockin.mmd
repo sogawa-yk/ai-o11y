@@ -1,0 +1,18 @@
+flowchart LR
+    subgraph A1["アプリA"]
+        SDKa["ベンダーX SDK"]
+    end
+    subgraph A2["アプリB"]
+        SDKb["ベンダーY SDK"]
+    end
+    subgraph A3["アプリC"]
+        SDKc["ベンダーZ SDK"]
+    end
+    SDKa --> BX["ベンダーX バックエンド"]
+    SDKb --> BY["ベンダーY バックエンド"]
+    SDKc --> BZ["ベンダーZ バックエンド"]
+
+    classDef app fill:#E3F2FD,stroke:#1976D2,color:#0D47A1
+    classDef vis fill:#FFF3E0,stroke:#F57C00,color:#E65100
+    class SDKa,SDKb,SDKc app
+    class BX,BY,BZ vis

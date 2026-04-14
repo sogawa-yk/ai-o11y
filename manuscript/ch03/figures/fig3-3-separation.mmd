@@ -1,0 +1,12 @@
+flowchart LR
+    APP["アプリ<br/>(OTel SDK)"] --> COL["OTel Collector"]
+    COL --> B1["バックエンドA<br/>(Tempo)"]
+    COL --> B2["バックエンドB<br/>(別ベンダー)"]
+    COL -. "差し替え可" .-> B3["バックエンドC<br/>(将来)"]
+
+    classDef app fill:#E3F2FD,stroke:#1976D2,color:#0D47A1
+    classDef coll fill:#F3E5F5,stroke:#7B1FA2,color:#4A148C
+    classDef store fill:#E8F5E9,stroke:#388E3C,color:#1B5E20
+    class APP app
+    class COL coll
+    class B1,B2,B3 store
