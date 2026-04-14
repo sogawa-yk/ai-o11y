@@ -1,0 +1,277 @@
+apiVersion: v1
+data:
+  agent.py: |
+    """travel-helper ch15: manual + automatic (OpenLLMetry) instrumentation."""
+    from __future__ import annotations
+
+    import logging
+    import os
+    import time
+    from typing import List
+
+    from fastapi import FastAPI
+    from opentelemetry import trace
+    from pydantic import BaseModel, Field
+
+    from llm import LLMClient
+    from otel_setup import init_otel, init_traceloop
+    from tools import places_tool, weather_tool
+
+    LOG_LEVEL = os.environ.get("LOG_LEVEL", "INFO")
+    logging.basicConfig(level=LOG_LEVEL, format="%(asctime)s %(levelname)s %(message)s")
+    log = logging.getLogger("travel-helper-ch15")
+
+    # 初期化順: まずOTel SDK、次にTraceloop（既存TracerProviderを再利用）
+    tracer, meter = init_otel(os.environ.get("OTEL_SERVICE_NAME", "travel-helper-ch15"))
+    init_traceloop(os.environ.get("OTEL_SERVICE_NAME", "travel-helper-ch15"))
+
+    llm = LLMClient()
+
+    requests_counter = meter.create_counter(
+        "travel_helper.requests", description="Total /plan requests"
+    )
+    duration_hist = meter.create_histogram(
+        "travel_helper.request.duration", unit="ms", description="End-to-end /plan request duration"
+    )
+
+    app = FastAPI()
+
+
+    class PlanRequest(BaseModel):
+        city: str = Field(..., min_length=1)
+        days: int = Field(..., ge=1, le=14)
+        keywords: List[str] = Field(default_factory=list)
+
+
+    class PlanResponse(BaseModel):
+        itinerary: str
+        trace_id: str
+
+
+    @app.get("/healthz")
+    def healthz():
+        return {"status": "ok", "llm_mode": llm.mode}
+
+
+    @app.post("/plan", response_model=PlanResponse)
+    def plan(req: PlanRequest) -> PlanResponse:
+        start = time.perf_counter()
+        with tracer.start_as_current_span("handle_plan_request") as root:
+            root.set_attribute("user.city", req.city)
+            root.set_attribute("user.days", req.days)
+            trace_id_hex = format(root.get_span_context().trace_id, "032x")
+
+            # stage.plan: LLMで調査項目を決める（OpenLLMetryがopenai呼び出しを自動Span化）
+            with tracer.start_as_current_span("stage.plan") as span:
+                prompt = (
+                    f"{req.city}の{req.days}日間プラン用にキーワード{req.keywords}を踏まえた"
+                    "調査項目を3つ挙げて。"
+                )
+                try:
+                    plan_text = llm.chat([{"role": "user", "content": prompt}])
+                except Exception as exc:
+                    span.record_exception(exc)
+                    span.set_status(trace.Status(trace.StatusCode.ERROR, str(exc)))
+                    raise
+                span.set_attribute("travel_helper.plan.prompt_chars", len(prompt))
+                span.set_attribute("travel_helper.plan.response_chars", len(plan_text))
+
+            # stage.gather: ツール呼び出し
+            with tracer.start_as_current_span("stage.gather") as span:
+                forecast = weather_tool(req.city, req.days)
+                places: List[str] = []
+                for kw in req.keywords[:2]:
+                    places.extend(places_tool(req.city, kw))
+                span.set_attribute("travel_helper.gather.places_count", len(places))
+
+            # stage.synthesize: LLMで最終応答生成（2回目のLLM呼び出しも自動Span化）
+            with tracer.start_as_current_span("stage.synthesize") as span:
+                synth_prompt = (
+                    f"{req.city} {req.days}日間のプランを{plan_text}と{forecast}"
+                    f"と{places}をもとに1段落で作成して。"
+                )
+                try:
+                    itinerary = llm.chat([{"role": "user", "content": synth_prompt}])
+                except Exception as exc:
+                    span.record_exception(exc)
+                    span.set_status(trace.Status(trace.StatusCode.ERROR, str(exc)))
+                    raise
+                span.set_attribute("travel_helper.itinerary.chars", len(itinerary))
+
+        elapsed_ms = (time.perf_counter() - start) * 1000
+        requests_counter.add(1, {"endpoint": "/plan"})
+        duration_hist.record(elapsed_ms, {"endpoint": "/plan"})
+        log.info("request done trace_id=%s elapsed_ms=%.1f", trace_id_hex, elapsed_ms)
+        return PlanResponse(itinerary=itinerary, trace_id=trace_id_hex)
+  llm.py: |
+    """LLM client wrapper with OCI GenAI / mock modes."""
+    from __future__ import annotations
+
+    import logging
+    import os
+    from typing import List
+
+    log = logging.getLogger(__name__)
+
+
+    def _mode() -> str:
+        return os.environ.get("LLM_MODE", "mock")
+
+
+    class LLMClient:
+        def __init__(self) -> None:
+            self.mode = _mode()
+            self.model = os.environ.get("OCI_GENAI_MODEL", "xai.grok-3")
+            self.client = None  # oci初期化失敗時の安全側デフォルト
+            if self.mode == "oci":
+                try:
+                    from openai import OpenAI  # noqa: F401
+
+                    self.client = OpenAI(
+                        base_url=os.environ["OCI_GENAI_ENDPOINT"],
+                        api_key=os.environ["OCI_GENAI_API_KEY"],
+                    )
+                except Exception as exc:  # noqa: BLE001
+                    log.error("OCI GenAI client init failed: %s. Falling back to mock.", exc)
+                    self.mode = "mock"
+
+        def chat(self, messages: List[dict]) -> str:
+            if self.mode == "oci":
+                resp = self.client.chat.completions.create(
+                    model=self.model,
+                    messages=messages,
+                )
+                return resp.choices[0].message.content or ""
+            # mock
+            last = messages[-1]["content"] if messages else ""
+            return f"[mock応答] 入力長={len(last)}文字"
+  otel_setup.py: |
+    """Ch14: OTel SDK + Traceloop (OpenLLMetry) initialization."""
+    from __future__ import annotations
+
+    import logging
+    import os
+    from typing import Tuple
+
+    from opentelemetry import metrics, trace
+    from opentelemetry._logs import set_logger_provider
+    from opentelemetry.exporter.otlp.proto.grpc._log_exporter import OTLPLogExporter
+    from opentelemetry.exporter.otlp.proto.grpc.metric_exporter import OTLPMetricExporter
+    from opentelemetry.exporter.otlp.proto.grpc.trace_exporter import OTLPSpanExporter
+    from opentelemetry.sdk._logs import LoggerProvider, LoggingHandler
+    from opentelemetry.sdk._logs.export import BatchLogRecordProcessor
+    from opentelemetry.sdk.metrics import MeterProvider
+    from opentelemetry.sdk.metrics.export import PeriodicExportingMetricReader
+    from opentelemetry.sdk.resources import Resource
+    from opentelemetry.sdk.trace import TracerProvider
+    from opentelemetry.sdk.trace.export import BatchSpanProcessor
+
+
+    def _endpoint() -> str:
+        return os.environ.get(
+            "OTEL_EXPORTER_OTLP_ENDPOINT",
+            "http://otel-gateway-opentelemetry-collector.observability:4317",
+        )
+
+
+    def init_otel(service_name: str) -> Tuple[trace.Tracer, metrics.Meter]:
+        """OTel SDKをまず初期化（TracerProvider/MeterProvider/LoggerProvider）。"""
+        resource = Resource.create(
+            {"service.name": service_name, "service.namespace": "aio11y-book"}
+        )
+
+        tp = TracerProvider(resource=resource)
+        tp.add_span_processor(
+            BatchSpanProcessor(OTLPSpanExporter(endpoint=_endpoint(), insecure=True))
+        )
+        trace.set_tracer_provider(tp)
+
+        reader = PeriodicExportingMetricReader(
+            OTLPMetricExporter(endpoint=_endpoint(), insecure=True),
+            export_interval_millis=10_000,
+        )
+        mp = MeterProvider(resource=resource, metric_readers=[reader])
+        metrics.set_meter_provider(mp)
+
+        lp = LoggerProvider(resource=resource)
+        lp.add_log_record_processor(
+            BatchLogRecordProcessor(OTLPLogExporter(endpoint=_endpoint(), insecure=True))
+        )
+        set_logger_provider(lp)
+        handler = LoggingHandler(level=logging.NOTSET, logger_provider=lp)
+        logging.getLogger().addHandler(handler)
+
+        return trace.get_tracer(service_name), metrics.get_meter(service_name)
+
+
+    def init_traceloop(service_name: str) -> None:
+        """OTel SDK初期化後にOpenLLMetryを重ねる。
+
+        Traceloop.init() は既存のTracerProviderを検出して共存する設計。
+        既存TracerProviderがあればそれを使うため、第13章の構成にinstrumentationだけが
+        追加される形になる。
+        """
+        try:
+            from traceloop.sdk import Traceloop
+
+            # Traceloopはデフォルトで Traceloop Cloud に送ろうとするため、
+            # api_endpoint を Collector のOTLP/HTTP エンドポイントに明示する。
+            # これによりOpenLLMetryのinstrumentationも既存のCollector経路に合流する。
+            api_endpoint = os.environ.get(
+                "TRACELOOP_BASE_URL",
+                "http://otel-gateway-opentelemetry-collector.observability:4318",
+            )
+            Traceloop.init(
+                app_name=service_name,
+                api_endpoint=api_endpoint,
+                disable_batch=False,
+            )
+        except Exception as exc:  # noqa: BLE001
+            logging.getLogger(__name__).error("Traceloop.init failed: %s", exc)
+  requirements.txt: |
+    fastapi==0.115.6
+    uvicorn[standard]==0.32.1
+    pydantic==2.10.3
+    opentelemetry-api==1.29.0
+    opentelemetry-sdk==1.29.0
+    opentelemetry-exporter-otlp-proto-grpc==1.29.0
+    openai==1.58.1
+    traceloop-sdk==0.40.7
+  tools.py: |
+    """Stub tools for ch15 (same as ch13 but without random errors for stable E2E demo)."""
+    from __future__ import annotations
+
+    import random
+    import time
+
+    from opentelemetry import trace
+
+    tracer = trace.get_tracer("travel-helper-ch15.tools")
+
+
+    def weather_tool(city: str, days: int) -> str:
+        with tracer.start_as_current_span("tool.weather") as span:
+            span.set_attribute("tool.name", "weather")
+            span.set_attribute("tool.city", city)
+            span.set_attribute("tool.days", days)
+            time.sleep(random.uniform(0.1, 0.2))
+            return f"{city}は晴れ予報"
+
+
+    def places_tool(city: str, keyword: str) -> list[str]:
+        with tracer.start_as_current_span("tool.places") as span:
+            span.set_attribute("tool.name", "places")
+            span.set_attribute("tool.city", city)
+            span.set_attribute("tool.keyword", keyword)
+            time.sleep(random.uniform(0.1, 0.2))
+            return [f"{city}{keyword}スポット{i}" for i in range(1, 4)]
+kind: ConfigMap
+metadata:
+  creationTimestamp: null
+  labels:
+    app.kubernetes.io/name: travel-helper
+    app.kubernetes.io/part-of: aio11y-book
+    book.aio11y/chapter: "15"
+    book.aio11y/owned-by: book
+  name: travel-helper-ch15-code
+  namespace: aio11y-book

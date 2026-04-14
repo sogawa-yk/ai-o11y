@@ -1,0 +1,60 @@
+receivers:
+  otlp:
+    protocols:
+      grpc:
+        endpoint: 0.0.0.0:4317
+      http:
+        endpoint: 0.0.0.0:4318
+
+processors:
+  memory_limiter:
+    check_interval: 1s
+    limit_mib: 256
+    spike_limit_mib: 64
+  batch:
+    send_batch_size: 512
+    timeout: 5s
+  resource:
+    attributes:
+      - key: collector.instance
+        value: ch15-book-collector
+        action: insert
+  # 旧Attribute `gen_ai.prompt` を新 `gen_ai.input.messages` にコピーする例。
+  # （第8章で触れたSDKアップグレード時の旧→新マッピング）
+  # 注: attributes Processor は配列インデックス付きキー
+  # （`gen_ai.prompt.0.content` 等）の一括リネームには対応しない。
+  # 配列全体を扱う場合は transform Processor（OTTL）を使用する。
+  # この Processor は service.pipelines には含めていない（定義例として提示）。
+  attributes/gen_ai_rename:
+    actions:
+      - key: gen_ai.input.messages
+        from_attribute: gen_ai.prompt
+        action: insert
+
+exporters:
+  # 共有Gatewayへの転送（既存経路を壊さない）
+  otlp/gateway:
+    endpoint: otel-gateway-opentelemetry-collector.observability:4317
+    tls:
+      insecure: true
+  # Langfuse への OTLP/HTTP 追加経路
+  otlphttp/langfuse:
+    endpoint: http://langfuse-web.langfuse:3000/api/public/otel
+    headers:
+      # 読者環境で ${env:LANGFUSE_BASIC_AUTH} を解決する想定
+      Authorization: "Basic ${env:LANGFUSE_BASIC_AUTH}"
+
+service:
+  pipelines:
+    traces:
+      receivers: [otlp]
+      processors: [memory_limiter, resource, batch]
+      exporters: [otlp/gateway, otlphttp/langfuse]
+    metrics:
+      receivers: [otlp]
+      processors: [memory_limiter, resource, batch]
+      exporters: [otlp/gateway]
+    logs:
+      receivers: [otlp]
+      processors: [memory_limiter, resource, batch]
+      exporters: [otlp/gateway]

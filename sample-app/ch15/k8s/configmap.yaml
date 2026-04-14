@@ -1,0 +1,19 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: travel-helper-ch15-config
+  namespace: aio11y-book
+  labels:
+    app.kubernetes.io/name: travel-helper
+    app.kubernetes.io/part-of: aio11y-book
+    book.aio11y/owned-by: book
+    book.aio11y/chapter: "15"
+data:
+  OTEL_SERVICE_NAME: "travel-helper-ch15"
+  # ch15 では本書用 Collector (aio11y-book 内) を指す
+  OTEL_EXPORTER_OTLP_ENDPOINT: "http://ch15-collector.aio11y-book:4317"
+  TRACELOOP_BASE_URL: "http://ch15-collector.aio11y-book:4318"
+  LLM_MODE: "mock"
+  OCI_GENAI_MODEL: "xai.grok-3"
+  TRACELOOP_TRACE_CONTENT: "true"
+  LOG_LEVEL: "INFO"
