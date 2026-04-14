@@ -38,7 +38,7 @@
 | `opentelemetry-instrumentation-logging` | 対応最新 | ログへのtrace_id付与 |
 | `opentelemetry-instrumentation-fastapi` | 対応最新 | FastAPI自動計装（ch05から使用） |
 | `traceloop-sdk` | 最新 | OpenLLMetry |
-| `langfuse` | 3.x系 | Python SDK |
+| `langfuse` | 3.x系（ただし ch11 はv2系API学習のため `2.60.2` 固定） | Python SDK |
 | `openai` | 1.x系 | OCI GenAI互換クライアント |
 | `fastapi` | 0.11x系 | Webフレームワーク |
 | `uvicorn` | 最新 | ASGIサーバ |

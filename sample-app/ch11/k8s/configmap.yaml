@@ -1,0 +1,15 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: travel-helper-ch11-config
+  namespace: aio11y-book
+  labels:
+    app.kubernetes.io/name: travel-helper
+    app.kubernetes.io/part-of: aio11y-book
+    book.aio11y/owned-by: book
+    book.aio11y/chapter: "11"
+data:
+  OTEL_SERVICE_NAME: "travel-helper-ch11"
+  OTEL_EXPORTER_OTLP_ENDPOINT: "http://otel-gateway-opentelemetry-collector.observability:4317"
+  LANGFUSE_HOST: "http://langfuse-web.langfuse:3000"
+  LOG_LEVEL: "INFO"
