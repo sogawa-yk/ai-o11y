@@ -1,0 +1,68 @@
+{
+  "title": "travel-helper baseline",
+  "schemaVersion": 39,
+  "tags": ["aio11y-book", "travel-helper"],
+  "timezone": "",
+  "refresh": "30s",
+  "time": {"from": "now-1h", "to": "now"},
+  "templating": {
+    "list": [
+      {
+        "name": "service",
+        "type": "textbox",
+        "label": "service.name",
+        "query": "travel-helper-ch13",
+        "current": {"text": "travel-helper-ch13", "value": "travel-helper-ch13"}
+      }
+    ]
+  },
+  "panels": [
+    {
+      "type": "timeseries",
+      "title": "Request rate (rps)",
+      "gridPos": {"h": 8, "w": 12, "x": 0, "y": 0},
+      "datasource": {"type": "prometheus", "uid": "prometheus"},
+      "targets": [
+        {
+          "expr": "sum(rate(travel_helper_requests_total{job=~\"$service\"}[5m]))",
+          "legendFormat": "rps"
+        }
+      ]
+    },
+    {
+      "type": "timeseries",
+      "title": "Request duration p95 (ms)",
+      "gridPos": {"h": 8, "w": 12, "x": 12, "y": 0},
+      "datasource": {"type": "prometheus", "uid": "prometheus"},
+      "targets": [
+        {
+          "expr": "histogram_quantile(0.95, sum by (le) (rate(travel_helper_request_duration_milliseconds_bucket{job=~\"$service\"}[5m])))",
+          "legendFormat": "p95"
+        }
+      ]
+    },
+    {
+      "type": "timeseries",
+      "title": "Error rate",
+      "gridPos": {"h": 8, "w": 12, "x": 0, "y": 8},
+      "datasource": {"type": "prometheus", "uid": "prometheus"},
+      "targets": [
+        {
+          "expr": "sum(rate(travel_helper_errors_total{job=~\"$service\"}[5m])) / clamp_min(sum(rate(travel_helper_requests_total{job=~\"$service\"}[5m])), 1)",
+          "legendFormat": "error-ratio"
+        }
+      ]
+    },
+    {
+      "type": "traces",
+      "title": "Recent traces",
+      "gridPos": {"h": 8, "w": 12, "x": 12, "y": 8},
+      "datasource": {"type": "tempo", "uid": "tempo"},
+      "targets": [
+        {
+          "query": "{ service.name=\"$service\" } | count_over_time() > 0"
+        }
+      ]
+    }
+  ]
+}
