@@ -1,0 +1,289 @@
+apiVersion: v1
+data:
+  agent.py: |
+    """travel-helper ch13: complete manual instrumentation (Span / Metric / Log / Exception)."""
+    from __future__ import annotations
+
+    import logging
+    import os
+    import time
+    from typing import List
+
+    from fastapi import FastAPI
+    from opentelemetry import trace
+    from pydantic import BaseModel, Field
+
+    from otel_setup import init_otel
+    from tools import ToolError, places_tool, restaurant_tool, weather_tool
+
+    LOG_LEVEL = os.environ.get("LOG_LEVEL", "INFO")
+    logging.basicConfig(level=LOG_LEVEL, format="%(asctime)s %(levelname)s %(message)s")
+    log = logging.getLogger("travel-helper-ch13")
+
+    tracer, meter = init_otel(os.environ.get("OTEL_SERVICE_NAME", "travel-helper-ch13"))
+
+    # Metric一覧（development-guidelines準拠）
+    requests_counter = meter.create_counter(
+        "travel_helper.requests",
+        description="Total /plan requests",
+    )
+    errors_counter = meter.create_counter(
+        "travel_helper.errors",
+        description="Requests that raised an exception",
+    )
+    duration_hist = meter.create_histogram(
+        "travel_helper.request.duration",
+        unit="ms",
+        description="End-to-end /plan request duration",
+    )
+    tool_errors_counter = meter.create_counter(
+        "travel_helper.tool.errors",
+        description="Tool-level errors (kept recorded, not user-failing)",
+    )
+
+    app = FastAPI()
+
+
+    class PlanRequest(BaseModel):
+        city: str = Field(..., min_length=1)
+        days: int = Field(..., ge=1, le=14)
+        keywords: List[str] = Field(default_factory=list)
+
+
+    class PlanResponse(BaseModel):
+        itinerary: str
+        trace_id: str
+
+
+    def _plan_stage(req: PlanRequest) -> List[str]:
+        with tracer.start_as_current_span("stage.plan") as span:
+            span.set_attribute("travel_helper.stage", "plan")
+            items = [f"{kw}関連スポット" for kw in req.keywords] or ["市内中心部の主要観光"]
+            span.set_attribute("travel_helper.investigation_items_count", len(items))
+            log.info("plan_stage decided items=%d", len(items))
+            return items
+
+
+    def _gather_stage(req: PlanRequest, items: List[str]) -> dict:
+        with tracer.start_as_current_span("stage.gather") as span:
+            span.set_attribute("travel_helper.stage", "gather")
+            forecast = None
+            places: List[str] = []
+            restaurants: List[str] = []
+
+            try:
+                forecast = weather_tool(req.city, req.days)
+            except ToolError as exc:
+                tool_errors_counter.add(1, {"tool": "weather"})
+                log.warning("weather_tool failed: %s", exc)
+
+            for kw in req.keywords[:2]:
+                try:
+                    places.extend(places_tool(req.city, kw))
+                except ToolError as exc:
+                    tool_errors_counter.add(1, {"tool": "places"})
+                    log.warning("places_tool failed: %s", exc)
+
+            try:
+                restaurants = restaurant_tool(req.city)
+            except ToolError as exc:
+                tool_errors_counter.add(1, {"tool": "restaurant"})
+                log.warning("restaurant_tool failed: %s", exc)
+
+            span.set_attribute("travel_helper.gather.forecast_ok", forecast is not None)
+            span.set_attribute("travel_helper.gather.places_count", len(places))
+            span.set_attribute("travel_helper.gather.restaurants_count", len(restaurants))
+            return {"forecast": forecast, "places": places, "restaurants": restaurants}
+
+
+    def _synthesize_stage(req: PlanRequest, items: List[str], gathered: dict) -> str:
+        with tracer.start_as_current_span("stage.synthesize") as span:
+            span.set_attribute("travel_helper.stage", "synthesize")
+            pieces = [f"{req.city} {req.days}日間プラン"]
+            if gathered["forecast"]:
+                pieces.append(gathered["forecast"])
+            pieces.extend(items[:3])
+            pieces.extend(gathered["places"][:3])
+            pieces.extend(gathered["restaurants"][:3])
+            text = " / ".join(pieces)
+            span.set_attribute("travel_helper.itinerary.chars", len(text))
+            return text
+
+
+    @app.get("/healthz")
+    def healthz():
+        return {"status": "ok"}
+
+
+    @app.post("/plan", response_model=PlanResponse)
+    def plan(req: PlanRequest) -> PlanResponse:
+        start = time.perf_counter()
+        with tracer.start_as_current_span("handle_plan_request") as root:
+            root.set_attribute("user.city", req.city)
+            root.set_attribute("user.days", req.days)
+            root.set_attribute("user.keywords_count", len(req.keywords))
+            trace_id_hex = format(root.get_span_context().trace_id, "032x")
+            try:
+                items = _plan_stage(req)
+                gathered = _gather_stage(req, items)
+                itinerary = _synthesize_stage(req, items, gathered)
+            except Exception as exc:
+                root.record_exception(exc)
+                root.set_status(trace.Status(trace.StatusCode.ERROR, str(exc)))
+                errors_counter.add(1, {"endpoint": "/plan"})
+                raise
+
+        elapsed_ms = (time.perf_counter() - start) * 1000
+        requests_counter.add(1, {"endpoint": "/plan"})
+        duration_hist.record(elapsed_ms, {"endpoint": "/plan"})
+        log.info(
+            "request done trace_id=%s elapsed_ms=%.1f itinerary_chars=%d",
+            trace_id_hex,
+            elapsed_ms,
+            len(itinerary),
+        )
+        return PlanResponse(itinerary=itinerary, trace_id=trace_id_hex)
+  otel_setup.py: |
+    """Complete OTel SDK initialization for ch13 (3-signals with logging)."""
+    from __future__ import annotations
+
+    import logging
+    import os
+    from typing import Tuple
+
+    from opentelemetry import metrics, trace
+    from opentelemetry._logs import set_logger_provider
+    from opentelemetry.exporter.otlp.proto.grpc._log_exporter import OTLPLogExporter
+    from opentelemetry.exporter.otlp.proto.grpc.metric_exporter import OTLPMetricExporter
+    from opentelemetry.exporter.otlp.proto.grpc.trace_exporter import OTLPSpanExporter
+    from opentelemetry.sdk._logs import LoggerProvider, LoggingHandler
+    from opentelemetry.sdk._logs.export import BatchLogRecordProcessor
+    from opentelemetry.sdk.metrics import MeterProvider
+    from opentelemetry.sdk.metrics.export import PeriodicExportingMetricReader
+    from opentelemetry.sdk.resources import Resource
+    from opentelemetry.sdk.trace import TracerProvider
+    from opentelemetry.sdk.trace.export import BatchSpanProcessor
+
+
+    def _endpoint() -> str:
+        return os.environ.get(
+            "OTEL_EXPORTER_OTLP_ENDPOINT",
+            "http://otel-gateway-opentelemetry-collector.observability:4317",
+        )
+
+
+    def init_otel(service_name: str) -> Tuple[trace.Tracer, metrics.Meter]:
+        """Initialize Tracer/Meter/Logger providers with a shared Resource."""
+        resource = Resource.create(
+            {
+                "service.name": service_name,
+                "service.namespace": "aio11y-book",
+            }
+        )
+
+        # Traces
+        tp = TracerProvider(resource=resource)
+        tp.add_span_processor(
+            BatchSpanProcessor(OTLPSpanExporter(endpoint=_endpoint(), insecure=True))
+        )
+        trace.set_tracer_provider(tp)
+
+        # Metrics
+        reader = PeriodicExportingMetricReader(
+            OTLPMetricExporter(endpoint=_endpoint(), insecure=True),
+            export_interval_millis=10_000,
+        )
+        mp = MeterProvider(resource=resource, metric_readers=[reader])
+        metrics.set_meter_provider(mp)
+
+        # Logs
+        lp = LoggerProvider(resource=resource)
+        lp.add_log_record_processor(
+            BatchLogRecordProcessor(OTLPLogExporter(endpoint=_endpoint(), insecure=True))
+        )
+        set_logger_provider(lp)
+        handler = LoggingHandler(level=logging.NOTSET, logger_provider=lp)
+        logging.getLogger().addHandler(handler)
+
+        return trace.get_tracer(service_name), metrics.get_meter(service_name)
+  requirements.txt: |
+    fastapi==0.115.6
+    uvicorn[standard]==0.32.1
+    pydantic==2.10.3
+    opentelemetry-api==1.29.0
+    opentelemetry-sdk==1.29.0
+    opentelemetry-exporter-otlp-proto-grpc==1.29.0
+  tools.py: |
+    """Stub tool implementations for travel-helper ch13."""
+    from __future__ import annotations
+
+    import random
+    import time
+
+    from opentelemetry import trace
+
+    tracer = trace.get_tracer("travel-helper-ch13.tools")
+
+
+    class ToolError(RuntimeError):
+        """ツール内部で発生した回復不能なエラー。"""
+
+
+    def _maybe_raise(tool_name: str) -> None:
+        # 5%確率で意図的なエラー（Observability観測対象として）
+        if random.random() < 0.05:
+            raise ToolError(f"{tool_name}: stub error for observation")
+
+
+    def weather_tool(city: str, days: int) -> str:
+        with tracer.start_as_current_span("tool.weather") as span:
+            span.set_attribute("tool.name", "weather")
+            span.set_attribute("tool.city", city)
+            span.set_attribute("tool.days", days)
+            try:
+                time.sleep(random.uniform(0.1, 0.2))
+                _maybe_raise("weather")
+                return f"{city}は晴れ予報"
+            except Exception as exc:
+                span.record_exception(exc)
+                span.set_status(trace.Status(trace.StatusCode.ERROR, str(exc)))
+                raise
+
+
+    def places_tool(city: str, keyword: str) -> list[str]:
+        with tracer.start_as_current_span("tool.places") as span:
+            span.set_attribute("tool.name", "places")
+            span.set_attribute("tool.city", city)
+            span.set_attribute("tool.keyword", keyword)
+            try:
+                time.sleep(random.uniform(0.15, 0.3))
+                _maybe_raise("places")
+                return [f"{city}{keyword}スポット{i}" for i in range(1, 4)]
+            except Exception as exc:
+                span.record_exception(exc)
+                span.set_status(trace.Status(trace.StatusCode.ERROR, str(exc)))
+                raise
+
+
+    def restaurant_tool(city: str) -> list[str]:
+        with tracer.start_as_current_span("tool.restaurant") as span:
+            span.set_attribute("tool.name", "restaurant")
+            span.set_attribute("tool.city", city)
+            try:
+                time.sleep(random.uniform(0.1, 0.2))
+                _maybe_raise("restaurant")
+                return [f"{city}レストラン{i}" for i in range(1, 4)]
+            except Exception as exc:
+                span.record_exception(exc)
+                span.set_status(trace.Status(trace.StatusCode.ERROR, str(exc)))
+                raise
+kind: ConfigMap
+metadata:
+  creationTimestamp: null
+  labels:
+    app.kubernetes.io/name: travel-helper
+    app.kubernetes.io/part-of: aio11y-book
+    book.aio11y/chapter: "13"
+    book.aio11y/owned-by: book
+  name: travel-helper-ch13-code
+  namespace: aio11y-book
