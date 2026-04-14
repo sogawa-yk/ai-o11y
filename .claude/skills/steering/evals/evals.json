@@ -1,0 +1,40 @@
+[
+  {
+    "id": "steering-plan-mode",
+    "description": "計画モードでステアリングファイルが作成されること",
+    "prompt": "第4章の執筆計画を立てて",
+    "expected": {
+      "skill_triggered": true,
+      "files_created": ["requirements.md", "design.md", "tasklist.md"]
+    }
+  },
+  {
+    "id": "steering-implementation-mode",
+    "description": "実装モードでタスク完了時にtasklist.mdが更新されること",
+    "prompt": "tasklist.mdに従って執筆を進めて",
+    "expected": {
+      "tasklist_updated_on_completion": true,
+      "checkbox_changed_to_checked": true
+    }
+  },
+  {
+    "id": "steering-no-skip",
+    "description": "タスクがスキップされないこと",
+    "prompt": "残りのタスクを完了させて",
+    "expected": {
+      "all_tasks_completed_or_split": true,
+      "no_skip_reasons": true
+    }
+  },
+  {
+    "id": "steering-retrospective",
+    "description": "振り返りモードで必要な情報が記録されること",
+    "prompt": "執筆の振り返りを記録して",
+    "expected": {
+      "has_completion_date": true,
+      "has_plan_vs_actual": true,
+      "has_lessons_learned": true,
+      "has_handoff_items": true
+    }
+  }
+]

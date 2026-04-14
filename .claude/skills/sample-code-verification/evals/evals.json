@@ -1,0 +1,46 @@
+[
+  {
+    "id": "sample-code-trigger",
+    "description": "サンプルコードの構築・検証時にトリガーされること",
+    "prompt": "第4章のサンプルコードを構築して検証して",
+    "expected": {
+      "skill_triggered": true
+    }
+  },
+  {
+    "id": "sample-code-spec-driven",
+    "description": "スペック駆動開発のフローに従うこと",
+    "prompt": "サンプルコードを実装して",
+    "expected": {
+      "creates_steering_files": true,
+      "follows_phase_order": ["計画", "実装ループ", "静的検証", "デプロイ検証", "クリーンアップ"]
+    }
+  },
+  {
+    "id": "sample-code-type-detection",
+    "description": "種別に応じた検証方法が選択されること",
+    "prompt": "Kubernetesマニフェストを検証して",
+    "expected": {
+      "type_detected": "k8s",
+      "static_validation": "kubectl dry-run",
+      "deploy_validation": "kubectl apply"
+    }
+  },
+  {
+    "id": "sample-code-verification",
+    "description": "コード例が動作検証済みであること",
+    "prompt": "サンプルコードを原稿に含めて",
+    "expected": {
+      "code_verified_before_inclusion": true,
+      "pseudocode_marked": true
+    }
+  },
+  {
+    "id": "sample-code-cumulative-branch",
+    "description": "累積型の場合にブランチが作成されること",
+    "prompt": "累積型サンプルコードの第3章分を実装して",
+    "expected": {
+      "branch_created": "sample-code/ch03"
+    }
+  }
+]

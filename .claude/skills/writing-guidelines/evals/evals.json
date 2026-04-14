@@ -1,0 +1,19 @@
+[
+  {
+    "id": "writing-guidelines-trigger",
+    "description": "執筆ガイドラインの作成時にトリガーされること",
+    "prompt": "執筆ガイドラインを作成して",
+    "expected": {
+      "skill_triggered": true,
+      "output_file": "docs/writing-guidelines.md"
+    }
+  },
+  {
+    "id": "writing-guidelines-structure",
+    "description": "テンプレートに準拠した全セクションが含まれること",
+    "prompt": "書籍の執筆ルールを定義して",
+    "expected": {
+      "sections": ["文体ルール", "表記ルール", "図表ルール", "コード例ルール", "引用・参照ルール", "禁止事項"]
+    }
+  }
+]

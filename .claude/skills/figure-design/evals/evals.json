@@ -1,0 +1,39 @@
+[
+  {
+    "id": "figure-design-trigger",
+    "description": "図表の作成・修正時にトリガーされること",
+    "prompt": "アーキテクチャ図を作成して",
+    "expected": {
+      "skill_triggered": true
+    }
+  },
+  {
+    "id": "figure-design-mermaid-theme",
+    "description": "Mermaid図にグレー背景対応のテーマが適用されること",
+    "prompt": "システム構成図をMermaidで作成して",
+    "expected": {
+      "has_theme_init": true,
+      "has_classdef_colors": true,
+      "background_transparent": true
+    }
+  },
+  {
+    "id": "figure-design-color-roles",
+    "description": "ノードの色分けが役割別に正しく適用されること",
+    "prompt": "ユーザーからオーケストレーターを経由してツールを呼び出すフロー図を作成して",
+    "expected": {
+      "main_is_blue": true,
+      "sub_is_orange": true,
+      "tool_is_green": true,
+      "user_is_gray": true
+    }
+  },
+  {
+    "id": "figure-design-sequence-theme",
+    "description": "シーケンス図にthemeVariablesが適用されること",
+    "prompt": "コンポーネント間の通信シーケンス図を作成して",
+    "expected": {
+      "has_actor_theme_variables": true
+    }
+  }
+]

@@ -1,0 +1,49 @@
+[
+  {
+    "id": "chapter-writing-trigger",
+    "description": "章の執筆時にトリガーされること",
+    "prompt": "第4章を執筆して",
+    "expected": {
+      "skill_triggered": true,
+      "output_file": "manuscript/ch04/ch04.md"
+    }
+  },
+  {
+    "id": "chapter-writing-figure-first",
+    "description": "図表が本文より先に設計されること",
+    "prompt": "4.1節を執筆して",
+    "expected": {
+      "figures_created_before_text": true
+    }
+  },
+  {
+    "id": "chapter-writing-mermaid-theme",
+    "description": "Mermaid図にテーマ設定とclassDefが適用されること",
+    "prompt": "アーキテクチャ図を含む節を執筆して",
+    "expected": {
+      "mermaid_has_theme_init": true,
+      "mermaid_has_classdef": true
+    }
+  },
+  {
+    "id": "chapter-writing-quiz-format",
+    "description": "理解度チェック問題が共通フォーマットに準拠すること",
+    "prompt": "章末の理解度チェック問題を作成して",
+    "expected": {
+      "has_question_type": true,
+      "has_difficulty": true,
+      "has_answer_details": true,
+      "has_related_section": true,
+      "question_count_3_to_5": true
+    }
+  },
+  {
+    "id": "chapter-writing-code-source-reference",
+    "description": "サンプルコードから引用したコード例にソースファイルパスが明示されること",
+    "prompt": "サンプルコードのコードを原稿に掲載して",
+    "expected": {
+      "has_list_caption_format": true,
+      "caption_includes_filepath": true
+    }
+  }
+]

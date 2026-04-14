@@ -1,0 +1,35 @@
+[
+  {
+    "id": "review-trigger",
+    "description": "章のレビュー時にトリガーされること",
+    "prompt": "第3章をレビューして",
+    "expected": {
+      "skill_triggered": true
+    }
+  },
+  {
+    "id": "review-all-checks",
+    "description": "8つのチェック項目が全て実行されること",
+    "prompt": "第4章の品質チェックを実行して",
+    "expected": {
+      "checks_performed": [
+        "用語統一",
+        "章間整合性",
+        "図表完全性",
+        "技術正確性",
+        "文体・表記",
+        "ページ配分",
+        "理解度チェック問題",
+        "情報ソース検証"
+      ]
+    }
+  },
+  {
+    "id": "review-glossary-check",
+    "description": "glossary.mdとの照合が行われること",
+    "prompt": "用語の統一性をチェックして",
+    "expected": {
+      "references_glossary": true
+    }
+  }
+]

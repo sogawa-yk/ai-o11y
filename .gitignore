@@ -1,0 +1,17 @@
+__pycache__/
+*.pyc
+*.pyo
+.venv/
+venv/
+.python-version
+
+# secrets
+sample-app/**/k8s/secret.yaml
+*.env
+.env
+
+# editor
+.vscode/
+.idea/
+*.swp
+.DS_Store

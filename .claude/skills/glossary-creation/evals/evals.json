@@ -1,0 +1,30 @@
+[
+  {
+    "id": "glossary-trigger",
+    "description": "用語集の作成時にトリガーされること",
+    "prompt": "用語集を作成して",
+    "expected": {
+      "skill_triggered": true,
+      "output_file": "docs/glossary.md"
+    }
+  },
+  {
+    "id": "glossary-structure",
+    "description": "テンプレートに準拠した構造を持つこと",
+    "prompt": "book-plan.mdを元に用語集を作成して",
+    "expected": {
+      "has_category_sections": true,
+      "has_index_section": true,
+      "each_term_has_definition": true,
+      "each_term_has_first_appearance": true
+    }
+  },
+  {
+    "id": "glossary-bilingual",
+    "description": "技術用語に日英両方の表記があること",
+    "prompt": "技術用語の用語集を作成して",
+    "expected": {
+      "terms_have_english": true
+    }
+  }
+]

@@ -1,0 +1,28 @@
+[
+  {
+    "id": "book-planning-trigger",
+    "description": "書籍企画書の作成を依頼された時にトリガーされること",
+    "prompt": "docs/ideas/book-concept.mdを元にbook-plan.mdを作成して",
+    "expected": {
+      "skill_triggered": true,
+      "output_file": "docs/book-plan.md"
+    }
+  },
+  {
+    "id": "book-planning-template-usage",
+    "description": "テンプレートを使用して構造化された企画書を生成すること",
+    "prompt": "書籍企画書を作成してください。想定ページ数は200ページです。",
+    "expected": {
+      "sections": ["書籍概要", "対象読者", "到達目標", "全体構成", "技術環境"],
+      "page_total_matches": true
+    }
+  },
+  {
+    "id": "book-planning-page-allocation",
+    "description": "ページ配分の合計が想定ページ数と一致すること",
+    "prompt": "200ページの技術書の企画書を作成して",
+    "expected": {
+      "chapter_pages_sum_equals_total": true
+    }
+  }
+]

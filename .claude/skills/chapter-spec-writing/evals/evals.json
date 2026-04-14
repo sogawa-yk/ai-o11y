@@ -1,0 +1,36 @@
+[
+  {
+    "id": "chapter-spec-trigger",
+    "description": "章仕様書の作成を依頼された時にトリガーされること",
+    "prompt": "第4章の仕様書を作成して",
+    "expected": {
+      "skill_triggered": true,
+      "output_file": "docs/chapter-specs/ch04-spec.md"
+    }
+  },
+  {
+    "id": "chapter-spec-structure",
+    "description": "テンプレートに準拠した構造を持つこと",
+    "prompt": "book-plan.mdに基づいて第1章の仕様書を作成して",
+    "expected": {
+      "sections": ["章の概要", "節の構成", "図表リスト", "章間の接続", "理解度チェック問題"]
+    }
+  },
+  {
+    "id": "chapter-spec-connections",
+    "description": "前後の章との接続が定義されていること",
+    "prompt": "第3章の仕様書を作成して",
+    "expected": {
+      "has_previous_connection": true,
+      "has_next_connection": true
+    }
+  },
+  {
+    "id": "chapter-spec-figures-per-section",
+    "description": "各節に最低1つの図表が計画されていること",
+    "prompt": "第2章の仕様書を作成して",
+    "expected": {
+      "every_section_has_figure": true
+    }
+  }
+]
