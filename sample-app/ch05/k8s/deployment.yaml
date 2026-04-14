@@ -1,0 +1,73 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: ch05-agent
+  namespace: aio11y-book
+  labels:
+    app.kubernetes.io/name: travel-helper
+    app.kubernetes.io/part-of: aio11y-book
+    book.aio11y/owned-by: book
+    book.aio11y/chapter: "05"
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app.kubernetes.io/name: travel-helper
+      book.aio11y/chapter: "05"
+  template:
+    metadata:
+      labels:
+        app.kubernetes.io/name: travel-helper
+        app.kubernetes.io/part-of: aio11y-book
+        book.aio11y/owned-by: book
+        book.aio11y/chapter: "05"
+    spec:
+      containers:
+        - name: agent
+          image: python:3.11-slim
+          workingDir: /app
+          command: ["/bin/sh", "-c"]
+          args:
+            - |
+              set -e
+              cp /code/* /app/
+              pip install --no-cache-dir -r /app/requirements.txt
+              exec uvicorn agent:app --host 0.0.0.0 --port 8000
+          ports:
+            - containerPort: 8000
+              name: http
+          envFrom:
+            - configMapRef:
+                name: travel-helper-ch05-config
+          readinessProbe:
+            httpGet:
+              path: /healthz
+              port: 8000
+            initialDelaySeconds: 30
+            periodSeconds: 5
+          volumeMounts:
+            - name: code
+              mountPath: /code
+      volumes:
+        - name: code
+          configMap:
+            name: travel-helper-ch05-code
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: travel-helper-ch05
+  namespace: aio11y-book
+  labels:
+    app.kubernetes.io/name: travel-helper
+    app.kubernetes.io/part-of: aio11y-book
+    book.aio11y/owned-by: book
+    book.aio11y/chapter: "05"
+spec:
+  selector:
+    app.kubernetes.io/name: travel-helper
+    book.aio11y/chapter: "05"
+  ports:
+    - name: http
+      port: 80
+      targetPort: 8000
