@@ -1,0 +1,29 @@
+{
+  "started_at": "2026-04-14T00:00:00",
+  "env": "k8s",
+  "kubectl_context": "context-c7lwigzhjea",
+  "git_enabled": true,
+  "total_chapters": 20,
+  "chapters": {
+    "01": { "status": "done", "step": "done", "completed_at": "2026-04-14T00:30:00", "commit_failed": true, "push_failed": true, "note": "not a git repo" },
+    "02": { "status": "done", "step": "done", "completed_at": "2026-04-14T01:30:00", "commit_failed": true, "push_failed": true, "note": "not a git repo" },
+    "03": { "status": "done", "step": "done", "completed_at": "2026-04-14T02:30:00", "commit_failed": true, "push_failed": true, "note": "not a git repo" },
+    "04": { "status": "done", "step": "done", "completed_at": "2026-04-14T03:30:00", "commit_failed": true, "push_failed": true, "note": "not a git repo; sample code verified on cluster" },
+    "05": { "status": "done", "step": "done", "completed_at": "2026-04-14T04:30:00", "commit_failed": true, "push_failed": true, "note": "not a git repo; 3-signal sample verified on cluster" },
+    "06": { "status": "fixed", "step": "fixed", "completed_at": null },
+    "07": { "status": "pending", "step": null, "completed_at": null },
+    "08": { "status": "pending", "step": null, "completed_at": null },
+    "09": { "status": "pending", "step": null, "completed_at": null },
+    "10": { "status": "pending", "step": null, "completed_at": null },
+    "11": { "status": "pending", "step": null, "completed_at": null },
+    "12": { "status": "pending", "step": null, "completed_at": null },
+    "13": { "status": "pending", "step": null, "completed_at": null },
+    "14": { "status": "pending", "step": null, "completed_at": null },
+    "15": { "status": "pending", "step": null, "completed_at": null },
+    "16": { "status": "pending", "step": null, "completed_at": null },
+    "17": { "status": "pending", "step": null, "completed_at": null },
+    "appendixA": { "status": "pending", "step": null, "completed_at": null },
+    "appendixB": { "status": "pending", "step": null, "completed_at": null },
+    "appendixC": { "status": "pending", "step": null, "completed_at": null }
+  }
+}
