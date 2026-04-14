@@ -21,7 +21,7 @@
     "14": { "status": "writing", "step": "writing", "completed_at": null },
     "15": { "status": "done", "step": "done", "completed_at": "2026-04-14T11:00:00", "committed": true, "pushed": true },
     "16": { "status": "done", "step": "done", "completed_at": "2026-04-14T11:30:00", "committed": true, "pushed": true },
-    "17": { "status": "writing", "step": "writing", "completed_at": null },
+    "17": { "status": "done", "step": "done", "completed_at": "2026-04-14T12:00:00", "committed": true, "pushed": true },
     "appendixA": { "status": "pending", "step": null, "completed_at": null },
     "appendixB": { "status": "pending", "step": null, "completed_at": null },
     "appendixC": { "status": "pending", "step": null, "completed_at": null }
