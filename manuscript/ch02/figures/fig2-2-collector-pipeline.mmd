@@ -1,0 +1,13 @@
+flowchart LR
+    subgraph TR["traces パイプライン"]
+        RT["Receiver"] --> PT["Processor"] --> ET["Exporter"]
+    end
+    subgraph MT["metrics パイプライン"]
+        RM["Receiver"] --> PM["Processor"] --> EM["Exporter"]
+    end
+    subgraph LG["logs パイプライン"]
+        RL["Receiver"] --> PL["Processor"] --> EL["Exporter"]
+    end
+
+    classDef coll fill:#F3E5F5,stroke:#7B1FA2,color:#4A148C
+    class RT,PT,ET,RM,PM,EM,RL,PL,EL coll

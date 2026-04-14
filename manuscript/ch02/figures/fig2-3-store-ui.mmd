@@ -1,0 +1,10 @@
+flowchart LR
+    PROM["Prometheus<br/>(metrics)"] --> GRAF["Grafana"]
+    TEMPO["Tempo<br/>(traces)"] --> GRAF
+    LOKI["Loki<br/>(logs)"] --> GRAF
+    LFSTORE["Langfuse 内部ストア<br/>(LLM trace + score)"] --> LFUI["Langfuse UI"]
+
+    classDef store fill:#E8F5E9,stroke:#388E3C,color:#1B5E20
+    classDef vis fill:#FFF3E0,stroke:#F57C00,color:#E65100
+    class PROM,TEMPO,LOKI,LFSTORE store
+    class GRAF,LFUI vis

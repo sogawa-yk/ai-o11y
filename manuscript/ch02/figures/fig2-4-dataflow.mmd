@@ -1,0 +1,27 @@
+flowchart LR
+    APP["travel-helper<br/>(OTel SDK + OpenLLMetry<br/>+ Langfuse SDK)"]
+    COL["OTel Collector"]
+    PROM["Prometheus"]
+    TEMPO["Tempo"]
+    LOKI["Loki"]
+    GRAF["Grafana"]
+    LF["Langfuse"]
+
+    APP -- "OTLP (traces/metrics/logs)" --> COL
+    COL -- "remote_write" --> PROM
+    COL -- "OTLP" --> TEMPO
+    COL -- "Loki API" --> LOKI
+    PROM --> GRAF
+    TEMPO --> GRAF
+    LOKI --> GRAF
+    APP -- "Langfuse SDK<br/>(prompt / response / score)" --> LF
+    GRAF -. "trace_id で横断" .-> LF
+
+    classDef inst fill:#E3F2FD,stroke:#1976D2,color:#0D47A1
+    classDef coll fill:#F3E5F5,stroke:#7B1FA2,color:#4A148C
+    classDef store fill:#E8F5E9,stroke:#388E3C,color:#1B5E20
+    classDef vis fill:#FFF3E0,stroke:#F57C00,color:#E65100
+    class APP inst
+    class COL coll
+    class PROM,TEMPO,LOKI store
+    class GRAF,LF vis

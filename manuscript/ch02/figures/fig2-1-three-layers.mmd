@@ -1,0 +1,27 @@
+flowchart TB
+    subgraph L1["計装層 (Instrumentation)"]
+        SDK["OTel SDK"]
+        OLM["OpenLLMetry"]
+        LFS["Langfuse SDK"]
+    end
+    subgraph L2["収集・転送層 (Collection)"]
+        COL["OTel Collector"]
+    end
+    subgraph L3["保存・可視化層 (Storage & Visualization)"]
+        PROM["Prometheus"]
+        LOKI["Loki"]
+        TEMPO["Tempo"]
+        GRAF["Grafana"]
+        LF["Langfuse"]
+    end
+
+    L1 --> L2 --> L3
+
+    classDef inst fill:#E3F2FD,stroke:#1976D2,color:#0D47A1
+    classDef coll fill:#F3E5F5,stroke:#7B1FA2,color:#4A148C
+    classDef store fill:#E8F5E9,stroke:#388E3C,color:#1B5E20
+    classDef vis fill:#FFF3E0,stroke:#F57C00,color:#E65100
+    class SDK,OLM,LFS inst
+    class COL coll
+    class PROM,LOKI,TEMPO store
+    class GRAF,LF vis
