@@ -1,0 +1,81 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: travel-helper-ch04-code
+  namespace: aio11y-book
+  labels:
+    app.kubernetes.io/name: travel-helper
+    app.kubernetes.io/part-of: aio11y-book
+    book.aio11y/owned-by: book
+    book.aio11y/chapter: "04"
+data:
+  agent.py: |
+    """travel-helper ch04: minimal Span emitter (plan_stage only)."""
+    from __future__ import annotations
+    import logging, os
+    from typing import List
+    from fastapi import FastAPI
+    from pydantic import BaseModel, Field
+    from otel_setup import init_tracer
+
+    LOG_LEVEL = os.environ.get("LOG_LEVEL", "INFO")
+    logging.basicConfig(level=LOG_LEVEL, format="%(asctime)s %(levelname)s %(message)s")
+    log = logging.getLogger("travel-helper-ch04")
+    tracer = init_tracer(service_name=os.environ.get("OTEL_SERVICE_NAME", "travel-helper-ch04"))
+
+    app = FastAPI()
+
+    class PlanRequest(BaseModel):
+        city: str = Field(..., min_length=1)
+        days: int = Field(..., ge=1, le=14)
+        keywords: List[str] = Field(default_factory=list)
+
+    class PlanResponse(BaseModel):
+        itinerary: str
+        trace_id: str
+
+    @app.get("/healthz")
+    def healthz():
+        return {"status": "ok"}
+
+    @app.post("/plan", response_model=PlanResponse)
+    def plan(req: PlanRequest) -> PlanResponse:
+        with tracer.start_as_current_span("stage.plan") as span:
+            span.set_attribute("user.city", req.city)
+            span.set_attribute("user.days", req.days)
+            span.set_attribute("user.keywords_count", len(req.keywords))
+            ctx = span.get_span_context()
+            trace_id_hex = format(ctx.trace_id, "032x")
+            items = [f"{kw}関連スポット" for kw in req.keywords] or ["市内中心部の主要観光"]
+            itinerary = f"{req.city} {req.days}日間プラン: " + " / ".join(items)
+            span.set_attribute("travel_helper.investigation_items_count", len(items))
+            log.info("plan_stage done trace_id=%s items=%d", trace_id_hex, len(items))
+            return PlanResponse(itinerary=itinerary, trace_id=trace_id_hex)
+  otel_setup.py: |
+    """Minimal OTel TracerProvider initialization for ch04."""
+    from __future__ import annotations
+    import os
+    from opentelemetry import trace
+    from opentelemetry.exporter.otlp.proto.grpc.trace_exporter import OTLPSpanExporter
+    from opentelemetry.sdk.resources import Resource
+    from opentelemetry.sdk.trace import TracerProvider
+    from opentelemetry.sdk.trace.export import BatchSpanProcessor
+
+    def init_tracer(service_name: str) -> trace.Tracer:
+        endpoint = os.environ.get(
+            "OTEL_EXPORTER_OTLP_ENDPOINT",
+            "http://otel-gateway-opentelemetry-collector.observability:4317",
+        )
+        resource = Resource.create({"service.name": service_name})
+        provider = TracerProvider(resource=resource)
+        exporter = OTLPSpanExporter(endpoint=endpoint, insecure=True)
+        provider.add_span_processor(BatchSpanProcessor(exporter))
+        trace.set_tracer_provider(provider)
+        return trace.get_tracer(service_name)
+  requirements.txt: |
+    fastapi==0.115.6
+    uvicorn[standard]==0.32.1
+    pydantic==2.10.3
+    opentelemetry-api==1.29.0
+    opentelemetry-sdk==1.29.0
+    opentelemetry-exporter-otlp-proto-grpc==1.29.0
